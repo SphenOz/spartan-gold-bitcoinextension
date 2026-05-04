@@ -1,5 +1,11 @@
 "use strict";
 
+// ADJUSTABLE PROOF OF WORK DIFFICULTY
+// Implemented by: Shresth
+// How it works: difficulty adjusts every DIFFICULTY_ADJUSTMENT_INTERVAL blocks
+// based on actual vs target block production time, clamped to prevent
+// runaway increases or decreases. Mirrors Bitcoin's retargeting algorithm.
+
 let Blockchain = require('./blockchain.js');
 let Client = require('./client.js');
 
@@ -50,7 +56,7 @@ module.exports = class Miner extends Client {
    * @param {Set} [txSet] - Transactions the miner has that have not been accepted yet.
    */
   startNewSearch(txSet=new Set()) {
-    this.currentBlock = Blockchain.makeBlock(this.address, this.lastBlock);
+    this.currentBlock = Blockchain.makeBlock(this.address, this.lastBlock, Blockchain.POW_TARGET);
 
     // Merging txSet into the transaction queue.
     // These transactions may include transactions not already included
