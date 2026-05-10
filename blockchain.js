@@ -121,6 +121,9 @@ module.exports = class Blockchain {
     let b = new this.instance.blockClass();
     b.chainLength = parseInt(o.chainLength, 10);
     b.timestamp = o.timestamp;
+    if (o.target !== undefined) {
+      b.target = BigInt(o.target);
+    }
 
     if (b.isGenesisBlock()) {
       // Balances need to be recreated and restored in a map.
