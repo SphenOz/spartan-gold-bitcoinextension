@@ -1,5 +1,11 @@
 "use strict";
 
+// ADJUSTABLE PROOF OF WORK DIFFICULTY
+// Implemented by: Shresth
+// How it works: difficulty adjusts every DIFFICULTY_ADJUSTMENT_INTERVAL blocks
+// based on actual vs target block production time, clamped to prevent
+// runaway increases or decreases. Mirrors Bitcoin's retargeting algorithm.
+
 let EventEmitter = require('events');
 
 let Blockchain = require('./blockchain.js');
@@ -241,6 +247,9 @@ module.exports = class Client extends EventEmitter {
     if (this.lastBlock.chainLength < block.chainLength) {
       this.lastBlock = block;
       this.setLastConfirmed();
+      if (Blockchain.hasInstance()) {
+        Blockchain.getInstance().applyDifficultyAfterNewTip(this.lastBlock, (h) => this.blocks.get(h));
+      }
     }
 
     // Go through any blocks that were waiting for this block

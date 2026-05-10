@@ -1,5 +1,11 @@
 "use strict";
 
+// ADJUSTABLE PROOF OF WORK DIFFICULTY
+// Implemented by: Shresth
+// How it works: difficulty adjusts every DIFFICULTY_ADJUSTMENT_INTERVAL blocks
+// based on actual vs target block production time, clamped to prevent
+// runaway increases or decreases. Mirrors Bitcoin's retargeting algorithm.
+
 // Network message constants
 const MISSING_BLOCK = "MISSING_BLOCK";
 const POST_TRANSACTION = "POST_TRANSACTION";
@@ -12,6 +18,11 @@ const NUM_ROUNDS_MINING = 2000;
 // Constants related to proof-of-work target
 const POW_BASE_TARGET = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 const POW_LEADING_ZEROES = 15;
+
+// Adjustable PoW (difficulty retargeting)
+const TARGET_BLOCK_TIME_MS = 10000; // Target: 1 block every 10 seconds
+const DIFFICULTY_ADJUSTMENT_INTERVAL = 5; // Adjust every 5 blocks (simplified from Bitcoin's 2016)
+const MAX_DIFFICULTY_CHANGE_FACTOR = 4; // Difficulty can't change more than 4x at once
 
 // Constants for mining rewards and default transaction fees
 const COINBASE_AMT_ALLOWED = 25;
@@ -57,7 +68,19 @@ module.exports = class Blockchain {
     let bc = Blockchain.getInstance();
     return bc.confirmedDepth;
   }
-  
+
+  static get TARGET_BLOCK_TIME_MS() {
+    return TARGET_BLOCK_TIME_MS;
+  }
+
+  static get DIFFICULTY_ADJUSTMENT_INTERVAL() {
+    return DIFFICULTY_ADJUSTMENT_INTERVAL;
+  }
+
+  static get MAX_DIFFICULTY_CHANGE_FACTOR() {
+    return MAX_DIFFICULTY_CHANGE_FACTOR;
+  }
+
 
   /**
    * Produces a new genesis block, giving the specified clients the amount of
@@ -248,7 +271,9 @@ module.exports = class Blockchain {
     this.defaultTxFee = defaultTxFee;
     this.confirmedDepth = confirmedDepth;
 
-    this.powTarget = POW_BASE_TARGET >> BigInt(powLeadingZeroes);
+    this.powBaselineTarget = POW_BASE_TARGET >> BigInt(powLeadingZeroes);
+    this._currentDifficulty = 1;
+    this.powTarget = this.powBaselineTarget / BigInt(this._currentDifficulty);
 
     this.initialBalances = new Map();
 
@@ -387,5 +412,75 @@ module.exports = class Blockchain {
     }
     let client = this.clientAddressMap.get(address);
     return client.name;
+  }
+
+  /**
+   * Integer difficulty for retargeting (higher = harder). The PoW target is
+   * powBaselineTarget / difficulty.
+   */
+  get currentDifficulty() {
+    return this._currentDifficulty;
+  }
+
+  /**
+   * Bitcoin-style retarget: difficulty scales with expectedTime/actualTime
+   * (equivalently: multiply by clamped expected/actual after forming
+   * ratio = actualTime/expectedTime). Fast blocks increase difficulty.
+   *
+   * @param {number} currentDifficulty
+   * @param {Block} lastBlock - Current chain tip (non-genesis heights only for adjustment).
+   * @param {function(string): Block|undefined} getBlockByHash
+   * @returns {number}
+   */
+  getNextDifficulty(currentDifficulty, lastBlock, getBlockByHash) {
+    if (!lastBlock || lastBlock.chainLength <= 0) {
+      return currentDifficulty;
+    }
+    if (lastBlock.chainLength % DIFFICULTY_ADJUSTMENT_INTERVAL !== 0) {
+      return currentDifficulty;
+    }
+
+    let windowBlocks = [];
+    let b = lastBlock;
+    for (let i = 0; i < DIFFICULTY_ADJUSTMENT_INTERVAL; i++) {
+      if (!b || b.isGenesisBlock()) {
+        return currentDifficulty;
+      }
+      windowBlocks.unshift(b);
+      b = getBlockByHash(b.prevBlockHash);
+    }
+
+    let firstBlockInWindow = windowBlocks[0];
+    let lastBlockInWindow = windowBlocks[DIFFICULTY_ADJUSTMENT_INTERVAL - 1];
+    let actualTime = lastBlockInWindow.timestamp - firstBlockInWindow.timestamp;
+    let expectedTime = DIFFICULTY_ADJUSTMENT_INTERVAL * TARGET_BLOCK_TIME_MS;
+
+    if (actualTime <= 0) {
+      actualTime = 1;
+    }
+
+    let ratio = actualTime / expectedTime;
+    ratio = Math.max(
+      1 / MAX_DIFFICULTY_CHANGE_FACTOR,
+      Math.min(MAX_DIFFICULTY_CHANGE_FACTOR, ratio),
+    );
+
+    // Higher difficulty when blocks arrive faster than target (ratio < 1).
+    let next = Math.round(currentDifficulty / ratio);
+    return Math.max(1, next);
+  }
+
+  /**
+   * Updates global PoW target after the chain tip advances.
+   *
+   * @param {Block} lastBlock
+   * @param {function(string): Block|undefined} getBlockByHash
+   */
+  applyDifficultyAfterNewTip(lastBlock, getBlockByHash) {
+    let next = this.getNextDifficulty(this._currentDifficulty, lastBlock, getBlockByHash);
+    if (next !== this._currentDifficulty) {
+      this._currentDifficulty = next;
+      this.powTarget = this.powBaselineTarget / BigInt(this._currentDifficulty);
+    }
   }
 };
