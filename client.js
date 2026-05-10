@@ -203,6 +203,10 @@ module.exports = class Client extends EventEmitter {
       this.log(`Block ${block.id} does not have a valid proof.`);
       return null;
     }
+    if (!block.hasValidMerkleRoot() && !block.isGenesisBlock()) {
+      this.log(`Block ${block.id} has an invalid Merkle root.`);
+      return null;
+    }
 
     // Make sure that we have the previous blocks, unless it is the genesis block.
     // If we don't have the previous blocks, request the missing blocks and exit.

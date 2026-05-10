@@ -114,6 +114,11 @@ module.exports = class Blockchain {
         let tx = this.makeTransaction(txJson);
         b.transactions.set(txID, tx);
       });
+      if (o.merkleRoot !== undefined) {
+        b.merkleRoot = o.merkleRoot;
+      } else {
+        b.updateMerkleRoot();
+      }
     }
 
     return b;

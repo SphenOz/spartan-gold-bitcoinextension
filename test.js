@@ -131,6 +131,7 @@ describe('Block', () => {
 
       // Verify hashes still match
       assert.equal(b2.hashVal(), hash);
+      assert.equal(b2.merkleRoot, b.merkleRoot);
 
       assert.equal(b2.balances.get(addr), 500-61);
       assert.equal(b2.balances.get("ffff"), 100+20);
@@ -163,6 +164,18 @@ describe('Client', () => {
       let b = new Block(addr, genesis);
       b.addTransaction(t);
       // Receiving and verifying block
+      b = clint.receiveBlock(b);
+      assert.isNull(b);
+    });
+
+    it("should reject any block with a tampered Merkle root.", () => {
+      let b = new Block(addr, genesis, EASY_POW_TARGET);
+      b.addTransaction(t);
+      b.merkleRoot = "deadbeef";
+      b.proof = 0;
+      miner.currentBlock = b;
+      miner.findProof(true);
+
       b = clint.receiveBlock(b);
       assert.isNull(b);
     });

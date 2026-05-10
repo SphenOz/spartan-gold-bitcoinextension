@@ -1,6 +1,7 @@
 "use strict";
 
 const Blockchain = require('./blockchain.js');
+const MerkleTree = require('./merkletree.js');
 
 const utils = require('./utils.js');
 
@@ -38,6 +39,7 @@ module.exports = class Block {
 
     // Storing transactions in a Map to preserve key order.
     this.transactions = new Map();
+    this.merkleRoot = null;
 
     // Adding toJSON methods for transactions and balances, which help with
     // serialization.
@@ -62,6 +64,35 @@ module.exports = class Block {
     this.rewardAddr = rewardAddr;
 
     this.coinbaseReward = coinbaseReward;
+  }
+
+  /**
+   * Calculates the Merkle root from the block's transaction ids.
+   *
+   * @returns {String|null} - Root hash for the current transaction order.
+   */
+  calculateMerkleRoot() {
+    let txIDs = Array.from(this.transactions.keys());
+    return new MerkleTree(txIDs).root;
+  }
+
+  /**
+   * Updates the stored Merkle root to match the current transactions.
+   *
+   * @returns {String|null} - Updated root.
+   */
+  updateMerkleRoot() {
+    this.merkleRoot = this.calculateMerkleRoot();
+    return this.merkleRoot;
+  }
+
+  /**
+   * Returns true when the stored header root matches the transaction ids.
+   *
+   * @returns {Boolean}
+   */
+  hasValidMerkleRoot() {
+    return this.merkleRoot === this.calculateMerkleRoot();
   }
 
   /**
@@ -144,6 +175,7 @@ module.exports = class Block {
     } else {
       // Other blocks must specify transactions and proof details.
       o.transactions = Array.from(this.transactions.entries());
+      o.merkleRoot = this.merkleRoot;
       o.prevBlockHash = this.prevBlockHash;
       o.proof = this.proof;
       o.rewardAddr = this.rewardAddr;
@@ -210,6 +242,7 @@ module.exports = class Block {
 
     // Adding the transaction to the block
     this.transactions.set(tx.id, tx);
+    this.updateMerkleRoot();
 
     // Taking gold from the sender
     let senderBalance = this.balanceOf(tx.from);
@@ -251,6 +284,8 @@ module.exports = class Block {
       let success = this.addTransaction(tx);
       if (!success) return false;
     }
+
+    this.updateMerkleRoot();
 
     return true;
   }
