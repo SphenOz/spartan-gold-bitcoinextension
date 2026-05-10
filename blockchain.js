@@ -27,6 +27,7 @@ const MAX_DIFFICULTY_CHANGE_FACTOR = 4; // Difficulty can't change more than 4x 
 // Constants for mining rewards and default transaction fees
 const COINBASE_AMT_ALLOWED = 25;
 const DEFAULT_TX_FEE = 1;
+const MAX_TXS_PER_BLOCK = 10;
 
 // If a block is 6 blocks older than the current block, it is considered
 // confirmed, for no better reason than that is what Bitcoin does.
@@ -62,6 +63,11 @@ module.exports = class Blockchain {
   static get DEFAULT_TX_FEE() {
     let bc = Blockchain.getInstance();
     return bc.defaultTxFee;
+  }
+
+  static get MAX_TXS_PER_BLOCK() {
+    let bc = Blockchain.getInstance();
+    return bc.maxTxsPerBlock;
   }
 
   static get CONFIRMED_DEPTH() {
@@ -205,6 +211,7 @@ module.exports = class Blockchain {
    * @param {number} [cfg.coinbaseAmount] - Amount of gold awarded to a miner for creating a block.
    * @param {number} [cfg.defaultTxFee] - Amount of gold awarded to a miner for accepting a transaction,
    *    if not overridden by the client.
+   * @param {number} [cfg.maxTxsPerBlock] - Maximum number of transactions allowed in a block.
    * @param {number} [cfg.confirmedDepth] - Number of blocks required after a block before it is
    *    considered confirmed.
    *
@@ -231,6 +238,7 @@ module.exports = class Blockchain {
     powLeadingZeroes = POW_LEADING_ZEROES,
     coinbaseReward = COINBASE_AMT_ALLOWED,
     defaultTxFee = DEFAULT_TX_FEE,
+    maxTxsPerBlock = MAX_TXS_PER_BLOCK,
     confirmedDepth = CONFIRMED_DEPTH,
     clients = [],
     mnemonic,
@@ -272,6 +280,7 @@ module.exports = class Blockchain {
     this.powLeadingZeroes = powLeadingZeroes;
     this.coinbaseReward = coinbaseReward;
     this.defaultTxFee = defaultTxFee;
+    this.maxTxsPerBlock = maxTxsPerBlock;
     this.confirmedDepth = confirmedDepth;
 
     this.powBaselineTarget = POW_BASE_TARGET >> BigInt(powLeadingZeroes);

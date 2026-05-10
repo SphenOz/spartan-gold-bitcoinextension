@@ -40,6 +40,7 @@ module.exports = class Block {
     // Storing transactions in a Map to preserve key order.
     this.transactions = new Map();
     this.merkleRoot = null;
+    this.maxTxs = Blockchain.MAX_TXS_PER_BLOCK;
 
     // Adding toJSON methods for transactions and balances, which help with
     // serialization.
@@ -93,6 +94,15 @@ module.exports = class Block {
    */
   hasValidMerkleRoot() {
     return this.merkleRoot === this.calculateMerkleRoot();
+  }
+
+  /**
+   * Returns true if the block has reached its transaction capacity.
+   *
+   * @returns {Boolean}
+   */
+  isFull() {
+    return this.transactions.size >= this.maxTxs;
   }
 
   /**
@@ -215,6 +225,9 @@ module.exports = class Block {
   addTransaction(tx, client) {
     if (this.transactions.get(tx.id)) {
       if (client) client.log(`Duplicate transaction ${tx.id}.`);
+      return false;
+    } else if (this.isFull()) {
+      if (client) client.log(`Block ${this.chainLength} is full.`);
       return false;
     } else if (tx.sig === undefined) {
       if (client) client.log(`Unsigned transaction ${tx.id}.`);

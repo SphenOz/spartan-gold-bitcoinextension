@@ -63,11 +63,16 @@ module.exports = class Miner extends Client {
     // by a recently received block, but that the miner is aware of.
     txSet.forEach((tx) => this.transactions.add(tx));
 
-    // Add queued-up transactions to block.
+    // Add queued-up transactions to block, keeping overflow for the next block.
+    let remainingTxs = new Set();
     this.transactions.forEach((tx) => {
-      this.currentBlock.addTransaction(tx, this);
+      if (this.currentBlock.isFull()) {
+        remainingTxs.add(tx);
+      } else {
+        this.currentBlock.addTransaction(tx, this);
+      }
     });
-    this.transactions.clear();
+    this.transactions = remainingTxs;
 
     // Start looking for a proof at 0.
     this.currentBlock.proof = 0;

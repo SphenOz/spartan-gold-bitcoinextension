@@ -90,6 +90,33 @@ describe('Block', () => {
       b2.addTransaction(tx);
       assert.isEmpty(b2.transactions);
     });
+
+    it("should reject transactions once the block reaches its fixed size.", () => {
+      let b = new Block(addr, prevBlock);
+      for (let nonce = 0; nonce < Blockchain.MAX_TXS_PER_BLOCK; nonce++) {
+        let tx = new Transaction({
+          from: addr,
+          pubKey: kp.public,
+          outputs: [{amount: 1, address: "ffff"}],
+          fee: 0,
+          nonce: nonce,
+        });
+        tx.sign(kp.private);
+        assert.isTrue(b.addTransaction(tx));
+      }
+
+      let overflowTx = new Transaction({
+        from: addr,
+        pubKey: kp.public,
+        outputs: [{amount: 1, address: "ffff"}],
+        fee: 0,
+        nonce: Blockchain.MAX_TXS_PER_BLOCK,
+      });
+      overflowTx.sign(kp.private);
+
+      assert.isFalse(b.addTransaction(overflowTx));
+      assert.equal(b.transactions.size, Blockchain.MAX_TXS_PER_BLOCK);
+    });
   });
 
   describe('#rerun', () => {
@@ -213,6 +240,28 @@ describe('Client', () => {
       clint.receiveBlock(bAlt);
       assert.equal(clint.blocks.get(bAlt.id), bAlt);
       assert.equal(clint.lastBlock, b2);
+    });
+
+    it("should leave overflow transactions queued for the miner's next block.", () => {
+      miner.transactions = new Set();
+      let startNonce = miner.lastBlock.nextNonce.get(addr) || 0;
+
+      for (let offset = 0; offset <= Blockchain.MAX_TXS_PER_BLOCK; offset++) {
+        let tx = new Transaction({
+          from: addr,
+          pubKey: kp.public,
+          outputs: [{amount: 1, address: "ffff"}],
+          fee: 0,
+          nonce: startNonce + offset,
+        });
+        tx.sign(kp.private);
+        miner.addTransaction(tx);
+      }
+
+      miner.startNewSearch();
+
+      assert.equal(miner.currentBlock.transactions.size, Blockchain.MAX_TXS_PER_BLOCK);
+      assert.equal(miner.transactions.size, 1);
     });
   });
 });
