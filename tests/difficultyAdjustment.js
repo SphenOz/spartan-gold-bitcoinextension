@@ -2,6 +2,8 @@
 
 /**
  * Adjustable PoW difficulty integration checks (manual timestamps).
+ * Shresth: This test proves that fast blocks increase difficulty and slow
+ * blocks decrease difficulty across the configured adjustment interval.
  * Run: node tests/difficultyAdjustment.js
  */
 
@@ -57,6 +59,7 @@ let prev = genesis;
 let t = 1_000_000;
 
 // Fast window: INTERVAL blocks with short wall-clock span → difficulty should rise.
+// Shresth: These blocks simulate miners finding blocks too quickly.
 for (let h = 1; h <= INTERVAL; h++) {
   t += 500;
   const b = new Block(rewardAddr, prev, EASY_POW_TARGET);
@@ -73,6 +76,7 @@ assertPass(
 );
 
 // Slow window: next INTERVAL blocks with long span → difficulty should fall.
+// Shresth: These blocks simulate mining being too slow, so difficulty should relax.
 for (let h = 1; h <= INTERVAL; h++) {
   t += 4 * TARGET_MS;
   const b = new Block(rewardAddr, prev, EASY_POW_TARGET);

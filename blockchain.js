@@ -5,6 +5,8 @@
 // How it works: difficulty adjusts every DIFFICULTY_ADJUSTMENT_INTERVAL blocks
 // based on actual vs target block production time, clamped to prevent
 // runaway increases or decreases. Mirrors Bitcoin's retargeting algorithm.
+// Shresth: This feature replaces a single fixed mining target with a target
+// that changes as blocks are mined too quickly or too slowly.
 
 // Network message constants
 const MISSING_BLOCK = "MISSING_BLOCK";
@@ -20,6 +22,8 @@ const POW_BASE_TARGET = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffff
 const POW_LEADING_ZEROES = 15;
 
 // Adjustable PoW (difficulty retargeting)
+// Shresth: These settings define the desired block speed, how often to retarget,
+// and the largest allowed difficulty jump in one adjustment.
 const TARGET_BLOCK_TIME_MS = 10000; // Target: 1 block every 10 seconds
 const DIFFICULTY_ADJUSTMENT_INTERVAL = 5; // Adjust every 5 blocks (simplified from Bitcoin's 2016)
 const MAX_DIFFICULTY_CHANGE_FACTOR = 4; // Difficulty can't change more than 4x at once
@@ -51,6 +55,8 @@ module.exports = class Blockchain {
 
   // Configurable properties, with static getters for convenience.
   static get POW_TARGET() {
+    // Shresth: Miners read this value when starting a new block, so they always
+    // mine against the latest adjusted proof-of-work target.
     let bc = Blockchain.getInstance();
     return bc.powTarget;
   }
@@ -283,6 +289,8 @@ module.exports = class Blockchain {
     this.maxTxsPerBlock = maxTxsPerBlock;
     this.confirmedDepth = confirmedDepth;
 
+    // Shresth: The baseline target is the easiest configured target; difficulty
+    // starts at 1 and makes the active target smaller as difficulty increases.
     this.powBaselineTarget = POW_BASE_TARGET >> BigInt(powLeadingZeroes);
     this._currentDifficulty = 1;
     this.powTarget = this.powBaselineTarget / BigInt(this._currentDifficulty);
@@ -429,6 +437,7 @@ module.exports = class Blockchain {
   /**
    * Integer difficulty for retargeting (higher = harder). The PoW target is
    * powBaselineTarget / difficulty.
+   * Shresth: Exposes the current difficulty for tests, logging, and debugging.
    */
   get currentDifficulty() {
     return this._currentDifficulty;
@@ -448,10 +457,13 @@ module.exports = class Blockchain {
     if (!lastBlock || lastBlock.chainLength <= 0) {
       return currentDifficulty;
     }
+    // Shresth: Difficulty only changes at fixed block intervals, not every block.
     if (lastBlock.chainLength % DIFFICULTY_ADJUSTMENT_INTERVAL !== 0) {
       return currentDifficulty;
     }
 
+    // Shresth: Walk backward through the last adjustment window so the code can
+    // compare how long those blocks actually took against the target time.
     let windowBlocks = [];
     let b = lastBlock;
     for (let i = 0; i < DIFFICULTY_ADJUSTMENT_INTERVAL; i++) {
@@ -471,6 +483,8 @@ module.exports = class Blockchain {
       actualTime = 1;
     }
 
+    // Shresth: Clamp the observed time ratio so difficulty cannot jump too far
+    // if timestamps are unusually fast, slow, or incorrect.
     let ratio = actualTime / expectedTime;
     ratio = Math.max(
       1 / MAX_DIFFICULTY_CHANGE_FACTOR,
@@ -478,6 +492,7 @@ module.exports = class Blockchain {
     );
 
     // Higher difficulty when blocks arrive faster than target (ratio < 1).
+    // Shresth: This is equivalent to currentDifficulty * expectedTime / actualTime.
     let next = Math.round(currentDifficulty / ratio);
     return Math.max(1, next);
   }
@@ -489,6 +504,8 @@ module.exports = class Blockchain {
    * @param {function(string): Block|undefined} getBlockByHash
    */
   applyDifficultyAfterNewTip(lastBlock, getBlockByHash) {
+    // Shresth: Recompute difficulty after the accepted chain tip advances, then
+    // update powTarget so future mined blocks use the new difficulty.
     let next = this.getNextDifficulty(this._currentDifficulty, lastBlock, getBlockByHash);
     if (next !== this._currentDifficulty) {
       this._currentDifficulty = next;

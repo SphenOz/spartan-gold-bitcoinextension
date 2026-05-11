@@ -24,6 +24,8 @@ module.exports = class Block {
    */
   constructor(rewardAddr, prevBlock, target=Blockchain.POW_TARGET, coinbaseReward=Blockchain.COINBASE_AMT_ALLOWED) {
     this.prevBlockHash = prevBlock ? prevBlock.hashVal() : null;
+    // Shresth: Each block stores the proof-of-work target it was mined against;
+    // lower targets mean the miner must find a rarer hash.
     this.target = target;
 
     // Get the balances and nonces from the previous block, if available.
@@ -123,6 +125,7 @@ module.exports = class Block {
   hasValidProof() {
     let h = utils.hash(this.serialize());
     let n = BigInt(`0x${h}`);
+    // Shresth: A proof is valid only when the block hash is below this block's target.
     return n < this.target;
   }
 

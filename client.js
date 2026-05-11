@@ -5,6 +5,8 @@
 // How it works: difficulty adjusts every DIFFICULTY_ADJUSTMENT_INTERVAL blocks
 // based on actual vs target block production time, clamped to prevent
 // runaway increases or decreases. Mirrors Bitcoin's retargeting algorithm.
+// Shresth: Clients trigger the retarget check whenever they accept a longer
+// chain, because that is when the latest block timing may change difficulty.
 
 let EventEmitter = require('events');
 
@@ -251,6 +253,8 @@ module.exports = class Client extends EventEmitter {
       this.lastBlock = block;
       this.setLastConfirmed();
       if (Blockchain.hasInstance()) {
+        // Shresth: Once this client accepts a new chain tip, ask Blockchain to
+        // update the global difficulty/target if this height is a retarget point.
         Blockchain.getInstance().applyDifficultyAfterNewTip(this.lastBlock, (h) => this.blocks.get(h));
       }
     }
