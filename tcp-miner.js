@@ -125,11 +125,15 @@ let knownMiners = config.knownMiners || [];
 console.clear();
 
 let startingBalances = config.genesis ? config.genesis.startingBalances : {};
-let genesis = Blockchain.makeGenesis({
+let bc = Blockchain.createInstance({
   blockClass: Block,
   transactionClass: Transaction,
-  startingBalances: startingBalances
+  net: new FakeNet(),
+  clients: [],
 });
+bc.initialBalances = new Map(Object.entries(startingBalances));
+bc.genesis.balances = new Map(bc.initialBalances);
+let genesis = bc.genesis;
 
 console.log(`Starting ${name}`);
 let minnie = new TcpMiner({name: name, keyPair: config.keyPair, connection: config.connection, startingBlock: genesis});

@@ -32,7 +32,7 @@ module.exports = class Client extends EventEmitter {
    * @param {Block} [obj.startingBlock] - The starting point of the blockchain for the client.
    * @param {Object} [obj.keyPair] - The public private keypair for the client.
    */
-  constructor({name, password, net, startingBlock} = {}) {
+  constructor({name, password, net, startingBlock, keyPair} = {}) {
     super();
 
     this.net = net;
@@ -41,7 +41,10 @@ module.exports = class Client extends EventEmitter {
     this.password = password ? password : this.name+"_pswd";
 
 
-    if (Blockchain.hasInstance()){
+    if (keyPair) {
+      this.keyPair = keyPair;
+      this.address = utils.calcAddress(this.keyPair.public);
+    } else if (Blockchain.hasInstance()){
        let bc = Blockchain.getInstance();
        this.generateAddress(bc.mnemonic);
     }
