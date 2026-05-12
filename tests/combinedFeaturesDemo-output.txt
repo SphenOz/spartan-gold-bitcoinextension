@@ -5,21 +5,22 @@ Configured max transactions per block: 2
 Initial difficulty: 1
 
 Block 1 transaction intake:
-  tx1 accepted: true
-  tx2 accepted: true
-  tx3 accepted after block filled: false
+  Alice -> Bob tx status: true
+  Alice -> Charlie tx status: true
+  Alice -> Miner tx status: overflowed
   block transaction count: 2
-PASS: fixed block size stops overflow transaction -> accepted=2, cap=2
+  queued overflow transactions for next block: 1
+PASS: fixed block size stops overflow transaction -> accepted=2, overflow=1, cap=2
 
 Merkle tree details for block 1:
-  included transaction ids: c5354c032147a599bcbbc8166f295c0e426cbdeeaf5cce6f9a8604f86231ecc9, 1ceb10a8161c2011392e7992782fd86944deb092ae37457b9644f4e428c21afb
-  block merkle root: c99b6448b8cec093b0f2ee858c45d906e4c65092b5380d4c033693b78ceef96e
-  computed merkle root: c99b6448b8cec093b0f2ee858c45d906e4c65092b5380d4c033693b78ceef96e
-  proof length for tx2: 1
+  included transaction ids: 2bf12a7791679e49731c67071e92ae37bc898d75e1179595c8fc7c843ea79fd7, ed01da94910447f8b20173555f0ce6f1613d7226f3c244f3dd73567addb87d3a
+  block merkle root: 422bebaa4dac2aab51f1433d0c4735727b075a1626c24a52a810703e9bf84255
+  computed merkle root: 422bebaa4dac2aab51f1433d0c4735727b075a1626c24a52a810703e9bf84255
+  proof length for verified tx: 1
 PASS: block merkle root matches computed root
 PASS: merkle proof validates for included tx
 
-Block 1 mined with proof 7.
+Block 1 mined with proof 14.
 Difficulty after block 1: 1
 
 Difficulty after fast window (5 blocks at 500ms spacing): 4

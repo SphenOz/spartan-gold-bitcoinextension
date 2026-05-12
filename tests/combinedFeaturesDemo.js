@@ -15,6 +15,7 @@ const path = require("path");
 
 const Block = require("../block.js");
 const Blockchain = require("../blockchain.js");
+const FakeNet = require("../fake-net.js");
 const MerkleTree = require("../merkletree.js");
 const Transaction = require("../transaction.js");
 
@@ -39,12 +40,12 @@ function assertPass(name, cond, detail) {
   }
 }
 
-function makeNet() {
-  return {
-    register() {},
-    broadcast() {},
-    sendMessage() {},
-  };
+class SyncNet extends FakeNet {
+  sendMessage(address, msg, o) {
+    const client = this.clients.get(address);
+    const payload = JSON.parse(JSON.stringify(o));
+    client.emit(msg, payload);
+  }
 }
 
 function mineBlock(block) {
@@ -52,18 +53,6 @@ function mineBlock(block) {
   while (!block.hasValidProof()) {
     block.proof++;
   }
-}
-
-function createSignedTx(client, nonce, outputs, fee = 0) {
-  const tx = new Transaction({
-    from: client.address,
-    nonce,
-    pubKey: client.keyPair.public,
-    outputs,
-    fee,
-  });
-  tx.sign(client.keyPair.private);
-  return tx;
 }
 
 function writeTranscript() {
@@ -77,16 +66,18 @@ logLine("");
 Blockchain.createInstance({
   blockClass: Block,
   transactionClass: Transaction,
-  net: makeNet(),
+  net: new SyncNet(),
   maxTxsPerBlock: 2,
   clients: [
     { name: "Alice", amount: 500 },
+    { name: "Bob", amount: 150 },
+    { name: "Charlie", amount: 75 },
     { name: "Miner", amount: 100, mining: true, miningRounds: 200000 },
   ],
 });
 
 const bc = Blockchain.getInstance();
-const [alice] = bc.getClients("Alice");
+const [alice, bob, charlie] = bc.getClients("Alice", "Bob", "Charlie");
 const miner = bc.miners[0];
 const rewardAddr = miner.address;
 
@@ -97,39 +88,44 @@ logLine(`Configured max transactions per block: ${Blockchain.MAX_TXS_PER_BLOCK}`
 logLine(`Initial difficulty: ${bc.currentDifficulty}`);
 logLine("");
 
-const tx1 = createSignedTx(alice, 0, [{ amount: 5, address: rewardAddr }]);
-const tx2 = createSignedTx(alice, 1, [{ amount: 7, address: rewardAddr }]);
-const tx3 = createSignedTx(alice, 2, [{ amount: 9, address: rewardAddr }]);
+miner.on(Blockchain.POST_TRANSACTION, miner.addTransaction);
 
-const block1 = new Block(rewardAddr, prev, EASY_POW_TARGET);
+const tx1 = alice.postTransaction([{ amount: 5, address: bob.address }], 0);
+const tx2 = alice.postTransaction([{ amount: 7, address: charlie.address }], 0);
+const tx3 = charlie.postTransaction([{ amount: 40, address: alice.address }], 0);
+
+miner.startNewSearch();
+const block1 = miner.currentBlock;
+block1.target = EASY_POW_TARGET;
 block1.timestamp = currentTime;
 
-const add1 = block1.addTransaction(tx1);
-const add2 = block1.addTransaction(tx2);
-const add3 = block1.addTransaction(tx3);
+const queuedOverflow = miner.transactions.size;
+const overflowHasTx = (tx) => Array.from(miner.transactions).some((queuedTx) => queuedTx.id === tx.id);
 
 logLine("Block 1 transaction intake:");
-logLine(`  tx1 accepted: ${add1}`);
-logLine(`  tx2 accepted: ${add2}`);
-logLine(`  tx3 accepted after block filled: ${add3}`);
+logLine(`  Alice -> Bob tx status: ${overflowHasTx(tx1) ? "overflowed" : block1.transactions.has(tx1.id)}`);
+logLine(`  Alice -> Charlie tx status: ${overflowHasTx(tx2) ? "overflowed" : block1.transactions.has(tx2.id)}`);
+logLine(`  Alice -> Miner tx status: ${overflowHasTx(tx3) ? "overflowed" : block1.transactions.has(tx3.id)}`);
 logLine(`  block transaction count: ${block1.transactions.size}`);
+logLine(`  queued overflow transactions for next block: ${queuedOverflow}`);
 
 assertPass(
   "fixed block size stops overflow transaction",
-  add1 && add2 && !add3 && block1.transactions.size === Blockchain.MAX_TXS_PER_BLOCK,
-  `accepted=${block1.transactions.size}, cap=${Blockchain.MAX_TXS_PER_BLOCK}`,
+  block1.transactions.size === Blockchain.MAX_TXS_PER_BLOCK && queuedOverflow === 1,
+  `accepted=${block1.transactions.size}, overflow=${queuedOverflow}, cap=${Blockchain.MAX_TXS_PER_BLOCK}`,
 );
 
 const includedTxIDs = Array.from(block1.transactions.keys());
 const merkleTree = new MerkleTree(includedTxIDs);
-const proof = merkleTree.getProof(tx2.id);
+const proofTx = block1.transactions.has(tx2.id) ? tx2 : tx1;
+const proof = merkleTree.getProof(proofTx.id);
 
 logLine("");
 logLine("Merkle tree details for block 1:");
 logLine(`  included transaction ids: ${includedTxIDs.join(", ")}`);
 logLine(`  block merkle root: ${block1.merkleRoot}`);
 logLine(`  computed merkle root: ${merkleTree.root}`);
-logLine(`  proof length for tx2: ${proof.length}`);
+logLine(`  proof length for verified tx: ${proof.length}`);
 
 assertPass(
   "block merkle root matches computed root",
@@ -137,7 +133,7 @@ assertPass(
 );
 assertPass(
   "merkle proof validates for included tx",
-  MerkleTree.verifyProof(tx2.id, proof, block1.merkleRoot),
+  MerkleTree.verifyProof(proofTx.id, proof, block1.merkleRoot),
 );
 
 mineBlock(block1);

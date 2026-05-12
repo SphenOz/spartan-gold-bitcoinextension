@@ -83,8 +83,7 @@ module.exports = class Block {
    * @returns {String|null} - Updated root.
    */
   updateMerkleRoot() {
-    this.merkleRoot = this.calculateMerkleRoot();
-    return this.merkleRoot;
+    return this.merkleRoot = this.calculateMerkleRoot();
   }
 
   /**
