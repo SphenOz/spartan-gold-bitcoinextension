@@ -5,6 +5,8 @@
 // How it works: difficulty adjusts every DIFFICULTY_ADJUSTMENT_INTERVAL blocks
 // based on actual vs target block production time, clamped to prevent
 // runaway increases or decreases. Mirrors Bitcoin's retargeting algorithm.
+// Shresth: Miners do not calculate difficulty themselves; they pull the current
+// Blockchain.POW_TARGET whenever they begin mining the next block.
 
 let Blockchain = require('./blockchain.js');
 let Client = require('./client.js');
@@ -56,6 +58,7 @@ module.exports = class Miner extends Client {
    * @param {Set} [txSet] - Transactions the miner has that have not been accepted yet.
    */
   startNewSearch(txSet=new Set()) {
+    // Shresth: This gives the new candidate block the latest adjusted PoW target.
     this.currentBlock = Blockchain.makeBlock(this.address, this.lastBlock, Blockchain.POW_TARGET);
 
     // Merging txSet into the transaction queue.
